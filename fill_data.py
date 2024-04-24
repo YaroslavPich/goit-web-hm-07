@@ -1,33 +1,51 @@
 from faker import Faker
-from random import randint
 import sqlite3
 from sqlite3 import DatabaseError
 import logging
+from random import randint, sample
+import random
 
-fake = Faker()
+NUM_STUDENTS = 40
+NUM_GROUPS = 3
+NUM_SUBJECTS = 8
+NUM_TEACHERS = 4
+MAX_GRADES_PER_STUDENT = 20
+
+fake = Faker(['uk_UA'])
 
 
 def fill_data():
 	conn = sqlite3.connect('./db/progress.db')
 	cur = conn.cursor()
-	for _ in range(3):
-		cur.execute('INSERT INTO groups (name) VALUES (?)', (fake.word(),))
 
-	for _ in range(3):
-		cur.execute('INSERT INTO teachers (fullname) VALUES (?)', (fake.name(),))
+	for i in range(1, NUM_GROUPS + 1):
+		cur.execute('''INSERT INTO groups (id, name) VALUES (?, ?)''', (i, fake.word()))
 
-	for teacher_id in range(1, 4):
-		for i in range(2):
-			cur.execute('INSERT INTO subjects (name, teacher_id) VALUES (?, ?)', (fake.word(), teacher_id))
 
-	for group_id in range(1, 4):
-		for _ in range(10):
-			cur.execute('INSERT INTO students (fullname, group_id) VALUES (?, ?)', (fake.name(), group_id))
-			student_id = cur.lastrowid
-			for subject_id in range(1, 7):
-				for _ in range(3):
-					cur.execute('INSERT INTO grades (student_id, subject_id, grade, grade_date) VALUES (?, ?, ?, ?)',
-					            (student_id, subject_id, randint(0, 100), fake.date_this_decade()))
+	for i in range(1, NUM_TEACHERS + 1):
+		cur.execute('''INSERT INTO teachers (id, fullname) VALUES (?, ?)''', (i, fake.name()))
+
+
+	for i in range(1, NUM_SUBJECTS + 1):
+		cur.execute('''INSERT INTO subjects (id, name, teacher_id) VALUES (?, ?, ?)''',
+		            (i, fake.word(), fake.random_int(min=1, max=NUM_TEACHERS)))
+
+
+	for i in range(1, NUM_STUDENTS + 1):
+		cur.execute('''INSERT INTO students (id, fullname, group_id) VALUES (?, ?, ?)''',
+		            (i, fake.name(), fake.random_int(min=1, max=NUM_GROUPS)))
+
+
+	for student_id in range(1, NUM_STUDENTS + 1):
+		subjects = range(1, NUM_SUBJECTS + 1)
+		grades = []
+		for _ in range(randint(1, MAX_GRADES_PER_STUDENT)):
+			subject_id = sample(subjects, 1)[0]
+			grade = random.randint(0, 100)
+			grade_date = fake.date_between(start_date='-1y', end_date='today')
+			cur.execute('''INSERT INTO grades (student_id, subject_id, grade, grade_date) VALUES (?, ?, ?, ?)''',
+			            (student_id, subject_id, grade, grade_date))
+			grades.append(subject_id)
 
 	try:
 		conn.commit()
